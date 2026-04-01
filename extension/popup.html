@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Qwenfy 翻译</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 14px;
+      width: 320px;
+      background: #fff;
+    }
+    
+    .header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 16px;
+      background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+      color: white;
+    }
+    
+    .header h1 {
+      font-size: 16px;
+      font-weight: 600;
+    }
+    
+    .header-btns {
+      display: flex;
+      gap: 8px;
+    }
+    
+    .icon-btn {
+      background: rgba(255, 255, 255, 0.2);
+      border: none;
+      border-radius: 4px;
+      padding: 4px 8px;
+      color: white;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    
+    .icon-btn:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+    
+    .content {
+      padding: 16px;
+    }
+    
+    .input-group {
+      margin-bottom: 12px;
+    }
+    
+    .input-group label {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 12px;
+      color: #666;
+    }
+    
+    textarea {
+      width: 100%;
+      height: 80px;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      font-size: 14px;
+      resize: none;
+      font-family: inherit;
+    }
+    
+    textarea:focus {
+      outline: none;
+      border-color: #3498db;
+    }
+    
+    .translate-btn {
+      width: 100%;
+      padding: 10px;
+      background: #3498db;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 14px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .translate-btn:hover {
+      background: #2980b9;
+    }
+    
+    .translate-btn:disabled {
+      background: #bdc3c7;
+      cursor: not-allowed;
+    }
+    
+    .result {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #eee;
+    }
+    
+    .result-label {
+      font-size: 12px;
+      color: #666;
+      margin-bottom: 8px;
+    }
+    
+    .result-text {
+      padding: 10px;
+      background: #f8f9fa;
+      border-radius: 6px;
+      line-height: 1.6;
+      min-height: 60px;
+      color: #333;
+    }
+    
+    .result-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    
+    .action-btn {
+      flex: 1;
+      padding: 8px;
+      background: #ecf0f1;
+      border: none;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .action-btn:hover {
+      background: #bdc3c7;
+    }
+    
+    .status {
+      font-size: 11px;
+      color: #999;
+      margin-top: 8px;
+      text-align: center;
+    }
+    
+    .loading {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      color: #999;
+    }
+    
+    .spinner {
+      width: 14px;
+      height: 14px;
+      border: 2px solid #e9ecef;
+      border-top-color: #3498db;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .error {
+      color: #e74c3c;
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>Qwenfy</h1>
+    <div class="header-btns">
+      <button class="icon-btn" id="settingsBtn">设置</button>
+    </div>
+  </div>
+  
+  <div class="content">
+    <div class="input-group">
+      <label>输入文本</label>
+      <textarea id="inputText" placeholder="输入要翻译的文本..."></textarea>
+    </div>
+    
+    <button class="translate-btn" id="translateBtn">翻译</button>
+    
+    <div class="result" id="resultArea" style="display: none;">
+      <div class="result-label">翻译结果</div>
+      <div class="result-text" id="resultText"></div>
+      <div class="result-actions">
+        <button class="action-btn" id="copyBtn">复制结果</button>
+        <button class="action-btn" id="clearBtn">清空</button>
+      </div>
+      <div class="status" id="statusText"></div>
+    </div>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>

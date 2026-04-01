@@ -1,0 +1,71 @@
+{
+  "manifest_version": 3,
+  "name": "Qwenfy - AI翻译助手",
+  "version": "0.1.0",
+  "description": "响应速度极快、翻译质量精准的AI翻译工具",
+  
+  "permissions": [
+    "activeTab",
+    "storage",
+    "clipboardWrite",
+    "contextMenus"
+  ],
+  
+  "host_permissions": [
+    "https://dashscope.aliyuncs.com/*",
+    "https://api.openai.com/*",
+    "https://api.deepseek.com/*",
+    "http://localhost:11434/*"
+  ],
+  
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"],
+      "run_at": "document_end"
+    }
+  ],
+  
+  "action": {
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    },
+    "default_title": "Qwenfy 翻译"
+  },
+  
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  
+  "commands": {
+    "translate-selection": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+T",
+        "mac": "Command+Shift+T"
+      },
+      "description": "翻译选中内容"
+    },
+    "translate-page": {
+      "suggested_key": {
+        "default": "Ctrl+Shift+P",
+        "mac": "Command+Shift+P"
+      },
+      "description": "翻译整页"
+    }
+  },
+  
+  "options_page": "options.html"
+}

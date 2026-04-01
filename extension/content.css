@@ -1,0 +1,17 @@
+/**
+ * Content Script Styles
+ */
+
+.qwenfy-popup {
+  direction: ltr;
+}
+
+.qwenfy-popup * {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+.qwenfy-popup button {
+  font-family: inherit;
+}
