@@ -1,303 +1,300 @@
-# Qwenfy - AI 翻译微型软件与浏览器插件
+# YuxTrans - AI 翻译工具
 
 > 响应速度是生命，翻译准度是底线
 
----
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub release](https://img.shields.io/github/v/release/Yaemikoreal/qwenfy.svg)](https://github.com/Yaemikoreal/qwenfy/releases)
 
-## 🎯 项目目标
-
-打造一款**响应速度极快、翻译质量精准**的 AI 翻译工具，覆盖桌面端和浏览器场景。
-
-### 核心指标
-
-| 指标 | 目标值 | 底线值 |
-|------|--------|--------|
-| **缓存命中响应** | < 50ms | < 100ms |
-| **本地模型响应** | < 500ms | < 1s |
-| **云端API响应** | < 2s | < 3s |
-| **翻译准度 (BLEU)** | > 0.75 | > 0.70 |
-| **人工评分** | > 4.2/5 | > 4.0/5 |
-| **内存占用** | < 200MB | < 300MB |
-| **启动时间** | < 3s (冷启动) | < 5s |
+一款**响应速度极快、翻译质量精准**的 AI 翻译工具，支持本地模型和多云端 API。
 
 ---
 
-## 🏗️ 技术架构
+## ✨ 核心特性
 
+- **⚡ 极速响应** - 缓存命中 < 0.1ms，本地模型 < 500ms，云端 API < 2s
+- **🔄 智能路由** - 自动选择最快路径：缓存 → 本地 → 云端
+- **☁️ 多云端支持** - 支持 8+ 云端 API 供应商
+- **🏠 本地优先** - 支持 Ollama 本地模型，离线可用
+- **📊 质量评估** - 内置 BLEU/WER/CER 翻译质量指标
+- **🖥️ 桌面客户端** - PyQt6 系统托盘应用，全局快捷键
+- **🌐 浏览器插件** - Chrome/Edge 扩展，划词翻译
+
+---
+
+## 📦 安装
+
+```bash
+# 基础安装
+pip install yuxtrans
+
+# 安装桌面客户端
+pip install "yuxtrans[desktop]"
+
+# 安装本地模型支持
+pip install "yuxtrans[local]"
+
+# 开发安装
+pip install "yuxtrans[dev]"
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                      用户交互层                              │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  桌面客户端   │  │  浏览器插件   │  │   CLI 工具   │      │
-│  │  (PyQt6)     │  │ (Manifest V3)│  │  (Python)   │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-└─────────────────────────────────────────────────────────────┘
-                               │
-┌─────────────────────────────────────────────────────────────┐
-│                    智能路由层 (Router)                       │
-│                                                              │
-│    缓存检查 → 本地模型 → 云端API → 返回结果                   │
-│    (<10ms)   (<500ms)   (<2s)                                │
-│                                                              │
-└─────────────────────────────────────────────────────────────┘
-                               │
-┌─────────────────────────────────────────────────────────────┐
-│                      核心翻译引擎                            │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  本地模型推理  │  │  云端 API    │  │  翻译缓存    │      │
-│  │  (Ollama)    │  │ (Qwen/OpenAI)│  │  (SQLite)   │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-└─────────────────────────────────────────────────────────────┘
-                               │
-┌─────────────────────────────────────────────────────────────┐
-│                      数据与监控层                            │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐      │
-│  │  性能监控    │  │  质量评估    │  │  用户配置    │      │
-│  │  (Metrics)   │  │  (BLEU/Test) │  │  (YAML)     │      │
-│  └──────────────┘  └──────────────┘  └──────────────┘      │
-└─────────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🛤️ 实施路线
-
-### Phase 0: 性能基准与架构基座 (Week 1)
-
-**目标**: 建立性能可观测性，确保后续优化有据可依
-
-| ID | 任务 | 产出 | 验收标准 |
-|----|------|------|----------|
-| P0-001 | 搭建性能测试框架 | `benchmark/` 目录 | 可测量：响应时间、内存、CPU |
-| P0-002 | 定义质量评估指标 | `metrics.py` | BLEU、人工评分标准、自动化测试集 |
-| P0-003 | 设计统一模型接口 | `engine/base.py` | 抽象类，支持 `translate()` 和 `stream()` |
-| P0-004 | 实现翻译缓存层 | `cache/translator.py` | SQLite + LRU，命中检测 < 10ms |
-| P0-005 | 建立CI性能监控 | GitHub Action | 每次提交自动跑性能基准 |
-
-**里程碑**: 框架就绪，能跑通一条翻译链路并测量性能
-
----
-
-### Phase 1: 快速路径优先 (Week 2-3)
-
-**目标**: 实现最快的翻译路径，达到 < 500ms 响应
-
-| ID | 任务 | 产出 | 性能目标 |
-|----|------|------|----------|
-| P1-001 | 调研本地模型方案 | 调研报告 | 对比：Ollama/ONNX/llama.cpp |
-| P1-002 | 实现本地模型推理 | `engine/local.py` | 首次翻译 < 2s，后续 < 500ms |
-| P1-003 | 实现缓存命中优化 | 缓存预热策略 | 热门词汇缓存命中率 > 80% |
-| P1-004 | 实现流式输出 | SSE/WebSocket 支持 | 首字输出 < 200ms |
-| P1-005 | 智能路由 - 快速路径 | `engine/router.py` | 本地可用则本地，否则兜底 |
-
-**质量底线**: BLEU > 0.70，翻译100条测试用例通过
-
----
-
-### Phase 2: 云端兜底与质量提升 (Week 4)
-
-**目标**: 云端API作为质量保障，确保底线
-
-| ID | 任务 | 产出 | 性能目标 |
-|----|------|------|----------|
-| P2-001 | 云端API封装 | `engine/cloud.py` | 支持 Qwen/OpenAI/DeepSeek |
-| P2-002 | 智能路由 - 云端兜底 | 路由策略升级 | 本地失败自动切换 |
-| P2-003 | 重试与超时机制 | 请求容错 | 失败自动重试，超时 < 3s |
-| P2-004 | 并发控制 | 请求队列 | 避免API限流，平滑请求 |
-| P2-005 | 翻译质量对比测试 | 质量报告 | 本地 vs 云端质量对比 |
-
-**质量底线**: 云端BLEU > 0.75，整体 > 0.72
-
----
-
-### Phase 3: 桌面端 - 极致体验 (Week 5-6)
-
-**目标**: 用户感知速度 < 300ms（缓存命中）
-
-| ID | 任务 | 产出 | 性能目标 |
-|----|------|------|----------|
-| P3-001 | 系统托盘常驻 | `desktop/tray.py` | 启动 < 2s，内存 < 100MB |
-| P3-002 | 全局快捷键 | `desktop/hotkey.py` | 响应延迟 < 100ms |
-| P3-003 | 划词翻译 | `desktop/selection.py` | 选中文本到显示 < 300ms |
-| P3-004 | 翻译窗口UI | `desktop/window.py` | 渲染流畅，动画 < 60fps |
-| P3-005 | 预加载优化 | 后台预取策略 | 剪贴板监听预测翻译 |
-
-**质量底线**: 用户体验评分 > 4.0/5
-
----
-
-### Phase 4: 浏览器插件 (Week 7-8)
-
-**目标**: 浏览器内无缝翻译体验
-
-| ID | 任务 | 产出 | 性能目标 |
-|----|------|------|----------|
-| P4-001 | Manifest V3 框架 | `extension/` 基础结构 | 符合Chrome最新规范 |
-| P4-002 | 划词翻译 (悬浮按钮) | Content Script | 响应 < 500ms |
-| P4-003 | 整页翻译 | 批量处理策略 | 按需加载，避免卡顿 |
-| P4-004 | 输入框实时翻译 | 实时预览 | 输入防抖 < 300ms |
-| P4-005 | 与桌面端通信 | Native Messaging | 可选，共享本地模型 |
-
-**质量底线**: 主流网站兼容性 > 95%
-
----
-
-### Phase 5: 持续优化 (Week 9+)
-
-**目标**: 打磨细节，追求极致
-
-| ID | 任务 | 产出 | 性能目标 |
-|----|------|------|----------|
-| P5-001 | 术语库/自定义词典 | 术语优先匹配 | 专业领域准确率提升 |
-| P5-002 | 翻译风格选择 | Prompt工程 | 正式/口语/学术风格 |
-| P5-003 | 长文本分段策略 | 智能分段算法 | 保持上下文连贯 |
-| P5-004 | 内存优化 | 内存池管理 | 长时间运行内存稳定 |
-| P5-005 | 启动速度优化 | 延迟加载 | 冷启动 < 3s，热启动 < 1s |
-
----
-
-## 📊 性能监控仪表盘
-
-```
-┌─────────────────────────────────────────────────────────┐
-│  Qwenfy 性能仪表盘                                        │
-├─────────────────────────────────────────────────────────┤
-│  响应时间                                                │
-│  ├─ 缓存命中:  10-50ms   ████████████ 目标: <50ms       │
-│  ├─ 本地模型:  200-500ms ████████    目标: <500ms      │
-│  └─ 云端API:   800-2000ms ███         目标: <2s        │
-├─────────────────────────────────────────────────────────┤
-│  翻译质量                                                │
-│  ├─ BLEU Score: 0.76     ████████████ 目标: >0.75      │
-│  └─ 人工评分:   4.3/5    ███████████  目标: >4.0       │
-├─────────────────────────────────────────────────────────┤
-│  资源占用                                                │
-│  ├─ 内存: 150MB          ███████      目标: <200MB     │
-│  ├─ CPU:  5% (idle)      ███          目标: <10%       │
-│  └─ 启动: 2.1s           ████████     目标: <3s        │
-└─────────────────────────────────────────────────────────┘
-```
-
----
-
-## 🎯 关键优化策略
-
-### 1. 响应速度优化链路
-```
-用户输入 → 缓存检查 (<10ms) → 本地模型 (<500ms) → 云端API (<2s)
-           ↓ 命中            ↓ 失败             ↓ 兜底
-         直接返回          转云端             返回结果
-```
-
-### 2. 翻译质量保障
-- 每个Phase必须通过质量基准测试
-- 建立翻译测试集：技术文档、日常对话、专业术语
-- 自动化BLEU评分 + 人工抽检
-
-### 3. 用户体验优先级
-1. **首次使用**: 引导选择模型（本地优先推荐）
-2. **日常使用**: 无感知切换（本地/云端自动路由）
-3. **异常处理**: 优雅降级（网络失败显示本地结果）
 
 ---
 
 ## 🚀 快速开始
 
-### 环境要求
+### Python API
 
-- Python 3.10+
-- Node.js 18+ (浏览器插件)
-- Ollama (本地模型)
+```python
+from yuxtrans import SmartRouter, TranslationRequest
+import asyncio
 
-### 安装
+async def main():
+    # 初始化路由器
+    router = SmartRouter()
+
+    # 翻译
+    request = TranslationRequest(
+        text="Hello, world!",
+        source_lang="en",
+        target_lang="zh"
+    )
+    result = await router.translate(request)
+    print(result.text)  # 你好，世界！
+    print(f"引擎: {result.engine.value}, 耗时: {result.response_time_ms:.2f}ms")
+
+asyncio.run(main())
+```
+
+### 云端 API 配置
+
+```python
+from yuxtrans.engine.cloud import CloudTranslator
+
+# OpenAI
+translator = CloudTranslator(
+    provider="openai",
+    api_key="sk-xxx",
+    model="gpt-4o-mini"
+)
+
+# Anthropic Claude
+translator = CloudTranslator(
+    provider="anthropic",
+    api_key="sk-ant-xxx",
+    model="claude-3-5-haiku-latest"
+)
+
+# DeepSeek
+translator = CloudTranslator(
+    provider="deepseek",
+    api_key="sk-xxx",
+    model="deepseek-chat"
+)
+
+# 自定义 OpenAI 兼容 API
+translator = CloudTranslator(
+    provider="custom",
+    api_key="not-needed",
+    model="qwen2.5-7b",
+    custom_endpoint="http://localhost:8000/v1/chat/completions"
+)
+```
+
+### 桌面客户端
 
 ```bash
-# 克隆仓库
-git clone https://github.com/Yaemikoreal/qwenfy.git
-cd qwenfy
+# 启动桌面应用
+yuxtrans
 
-# 安装依赖
-pip install -r requirements.txt
-
-# 下载本地模型
-ollama pull qwen2:7b
-
-# 启动桌面客户端
-python -m qwenfy.desktop
+# 或
+python -m yuxtrans.desktop
 ```
+
+### 浏览器插件
+
+1. 打开 Chrome: `chrome://extensions/`
+2. 启用"开发者模式"
+3. 点击"加载已解压的扩展程序"
+4. 选择 `extension/` 目录
+5. 点击插件图标配置 API Key
+
+---
+
+## ☁️ 支持的云端 API
+
+| 供应商 | ID | 默认模型 | 特点 |
+|--------|-----|----------|------|
+| 阿里云通义千问 | `qwen` | qwen-turbo | 国内稳定，中文优化 |
+| OpenAI | `openai` | gpt-4o-mini | 国际标准，多语言 |
+| DeepSeek | `deepseek` | deepseek-chat | 国内性价比高 |
+| Anthropic | `anthropic` | claude-3-5-haiku-latest | 高质量推理 |
+| Groq | `groq` | llama-3.1-8b-instant | 极速推理 (<100ms) |
+| Moonshot | `moonshot` | moonshot-v1-8k | 长文本支持 |
+| Siliconflow | `siliconflow` | Qwen/Qwen2.5-7B-Instruct | 多模型选择 |
+| 自定义 | `custom` | 自定义 | OpenAI 兼容 API |
+
+查看详细配置: [docs/PROVIDERS.md](docs/PROVIDERS.md)
+
+---
+
+## 🏗️ 架构
+
+```
+用户请求
+    │
+    ▼
+┌─────────────────────────────────────────────────────────────┐
+│                    SmartRouter (智能路由)                    │
+│                                                              │
+│  ┌─────────┐    ┌─────────┐    ┌─────────┐                │
+│  │  Cache  │ ─► │  Local  │ ─► │  Cloud  │                │
+│  │ <0.1ms  │    │ <500ms  │    │  <2s    │                │
+│  └─────────┘    └─────────┘    └─────────┘                │
+│       │              │              │                       │
+│   命中返回       本地推理       云端兜底                     │
+└─────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 📊 性能指标
+
+| 指标 | 目标值 | 实测值 | 状态 |
+|------|--------|--------|------|
+| 缓存命中响应 | < 10ms | **0.04ms** | ✅ |
+| 本地模型响应 | < 500ms | 待实测* | ⏳ |
+| 云端API响应 | < 2s | 待实测* | ⏳ |
+| 缓存命中率 | > 80% | **100%** (预热后) | ✅ |
+| BLEU 评分 | 支持 | 中英文正常 | ✅ |
+
+*需要配置 Ollama 或云端 API Key
 
 ---
 
 ## 📁 项目结构
 
 ```
-qwenfy/
-├── qwenfy/                 # 核心包
-│   ├── __init__.py
-│   ├── engine/             # 翻译引擎
-│   │   ├── __init__.py
-│   │   ├── base.py         # 统一模型接口
-│   │   ├── local.py        # 本地模型推理
-│   │   ├── cloud.py        # 云端 API 调用
-│   │   └── router.py       # 智能路由
-│   ├── desktop/            # 桌面客户端
-│   │   ├── __init__.py
-│   │   ├── app.py          # 主应用
-│   │   ├── tray.py         # 系统托盘
-│   │   ├── hotkey.py       # 全局快捷键
-│   │   └── window.py       # 翻译窗口
-│   ├── cache/              # 缓存层
-│   │   ├── __init__.py
-│   │   └── database.py     # SQLite 封装
-│   ├── metrics/             # 性能监控
-│   │   ├── __init__.py
-│   │   └── benchmark.py    # 性能测试
-│   └── utils/              # 工具函数
-│       └── __init__.py
-├── extension/              # 浏览器插件
-│   ├── manifest.json
-│   ├── background.js
-│   ├── content.js
-│   └── popup.html
-├── benchmark/              # 性能测试
-│   ├── test_cases/         # 翻译测试集
-│   └── results/            # 测试结果
-├── tests/                  # 单元测试
-├── docs/                   # 文档
-├── requirements.txt
-├── setup.py
-└── README.md
+yuxtrans/
+├── yuxtrans/              # 核心包
+│   ├── engine/            # 翻译引擎
+│   │   ├── base.py        # 统一模型接口
+│   │   ├── local.py       # Ollama 本地模型
+│   │   ├── cloud.py       # 云端 API
+│   │   └── router.py      # 智能路由
+│   ├── cache/             # 缓存系统
+│   │   ├── database.py    # SQLite + LRU
+│   │   └── warmup.py      # 预热策略
+│   ├── metrics/           # 性能监控
+│   │   ├── benchmark.py   # 基准测试
+│   │   └── quality.py     # BLEU/WER/CER
+│   ├── desktop/           # 桌面客户端
+│   │   ├── tray.py        # 系统托盘
+│   │   ├── hotkey.py      # 全局快捷键
+│   │   ├── window.py      # 翻译窗口
+│   │   └── settings.py    # 设置对话框
+│   └── utils/             # 工具模块
+│       ├── config.py      # 配置管理
+│       ├── retry.py       # 重试机制
+│       ├── concurrency.py # 并发控制
+│       ├── terminology.py # 术语库
+│       └── style.py       # 翻译风格
+│
+├── extension/             # 浏览器插件 (Manifest V3)
+├── tests/                 # 单元测试 (35 个)
+├── examples/              # 示例脚本
+├── docs/                  # 文档
+└── benchmark/             # 性能测试用例
 ```
 
 ---
 
-## 🔧 技术选型
+## 🔧 配置
 
-| 组件 | 推荐 | 备选 | 原因 |
-|------|------|------|------|
-| 本地推理 | **Ollama** | llama.cpp | 部署简单，Qwen支持好，社区活跃 |
-| 云端API | **Qwen API** | OpenAI/DeepSeek | 与本地模型一致，体验连贯 |
-| 桌面框架 | **PyQt6** | Tauri | 成熟稳定，跨平台 |
-| 缓存 | **SQLite + LRU** | Redis | 持久化 + 内存快速访问 |
-| 浏览器插件 | **Manifest V3** | - | Chrome强制要求 |
+配置文件位置: `~/.yuxtrans/config.yaml`
+
+```yaml
+engine:
+  prefer_local: true
+  local_model: "qwen2:7b"
+  cloud_provider: "qwen"
+  cloud_model: "qwen-turbo"
+  cloud_api_key: "your-api-key"
+
+performance:
+  max_retries: 3
+  bleu_threshold: 0.70
+
+ui:
+  theme: "light"
+  language: "zh"
+  hotkey_translate: "Ctrl+Shift+T"
+```
 
 ---
 
-## 🤝 贡献指南
+## 🧪 开发
 
-欢迎提交 Issue 和 PR！请遵循以下规范：
+```bash
+# 克隆仓库
+git clone https://github.com/Yaemikoreal/qwenfy.git
+cd qwenfy
 
-1. **代码风格**: 使用 Black 格式化，遵循 PEP 8
-2. **提交信息**: 使用 [Conventional Commits](https://www.conventionalcommits.org/)
-3. **测试**: 新功能需附带单元测试
-4. **性能**: 确保不引入性能回归
+# 安装开发依赖
+pip install -e ".[dev]"
+
+# 运行测试
+pytest
+
+# 代码检查
+ruff check yuxtrans/
+ruff format yuxtrans/
+```
+
+---
+
+## 📝 更新日志
+
+### [v0.1.0] - 2026-04-01
+
+#### 新增
+- 翻译引擎统一接口 (`BaseTranslator`)
+- Ollama 本地模型支持 (`LocalTranslator`)
+- 8 个云端 API 供应商支持 (`CloudTranslator`)
+- 智能路由系统 (`SmartRouter`)
+- SQLite + LRU 双层缓存
+- BLEU/WER/CER 质量评估
+- PyQt6 桌面客户端
+- Chrome 浏览器插件
+
+#### 性能
+- 缓存命中响应: 0.04ms (目标 < 10ms) ✅
+- 缓存命中率: 100% (预热后) ✅
+
+详见 [CHANGELOG.md](CHANGELOG.md)
+
+---
+
+## 🤝 贡献
+
+欢迎提交 Issue 和 PR！
+
+1. Fork 本仓库
+2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
+3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
+4. 推送到分支 (`git push origin feature/AmazingFeature`)
+5. 创建 Pull Request
 
 ---
 
 ## 📄 许可证
 
-MIT License © 2025 Qwenfy Contributors
+[MIT License](LICENSE) © 2026 YuxTrans Contributors
 
 ---
 
-> 💡 **提示**: 本项目以性能为核心，每个阶段都有明确的质量底线，不达标不推进。
+## 🙏 致谢
+
+- [Ollama](https://ollama.ai/) - 本地模型推理
+- [Qwen](https://tongyi.aliyun.com/) - 通义千问模型
+- [OpenAI](https://openai.com/) - GPT 模型
+- [Anthropic](https://www.anthropic.com/) - Claude 模型
