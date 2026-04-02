@@ -7,12 +7,20 @@ __version__ = "0.1.0"
 __author__ = "YuxTrans Team"
 
 from yuxtrans.cache.database import TranslationCache
-from yuxtrans.engine.base import BaseTranslator, TranslationError, TranslationResult
+from yuxtrans.engine.base import (
+    BaseTranslator,
+    TranslationError,
+    TranslationRequest,
+    TranslationResult,
+)
+from yuxtrans.engine.router import SmartRouter
 
 __all__ = [
     "BaseTranslator",
+    "TranslationRequest",
     "TranslationResult",
     "TranslationError",
     "TranslationCache",
+    "SmartRouter",
     "__version__",
 ]
