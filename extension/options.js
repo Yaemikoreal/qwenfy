@@ -92,7 +92,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 翻译引擎
     providerSelect.value = config.provider || 'qwen';
     apiKeyInput.value = config.apiKey || '';
-    apiEndpointInput.value = config.apiEndpoint || '';
+    // 自动填充默认请求地址（非自定义/本地供应商）
+    const provider = config.provider || 'qwen';
+    if (provider !== 'custom' && provider !== 'local') {
+      apiEndpointInput.value = config.apiEndpoint || DEFAULT_ENDPOINTS[provider] || '';
+    } else {
+      apiEndpointInput.value = config.apiEndpoint || '';
+    }
     localModelInput.value = config.localModel || 'qwen2:7b';
     cacheEnabledInput.checked = config.cacheEnabled !== false;
     cacheSizeInput.value = config.cacheSize || 1000;
@@ -205,16 +211,24 @@ document.addEventListener('DOMContentLoaded', async () => {
         customProviderSection.classList.toggle('show', isCustom);
       }
 
-      // 更新请求地址默认值提示并加载模型
+      // 更新请求地址默认值并加载模型
       if (!isLocal && !isCustom) {
         const defaultEndpoint = DEFAULT_ENDPOINTS[provider] || '';
         if (apiEndpointInput) {
-          apiEndpointInput.placeholder = defaultEndpoint ? `默认: ${defaultEndpoint}` : '请输入请求地址';
+          // 切换供应商时自动更新请求地址
+          const currentValue = apiEndpointInput.value.trim();
+          const oldDefaultEndpoint = DEFAULT_ENDPOINTS[providerSelect._lastProvider] || '';
+          if (!currentValue || currentValue === oldDefaultEndpoint) {
+            apiEndpointInput.value = defaultEndpoint;
+          }
+          apiEndpointInput.placeholder = '可自定义修改';
         }
         // 加载默认模型列表
         const savedModel = config && config.model ? config.model : '';
         loadModelOptions(provider, savedModel);
       }
+      // 记录当前供应商，用于下次切换判断
+      providerSelect._lastProvider = provider;
     } catch (error) {
       console.error('更新供应商 UI 失败:', error);
     }

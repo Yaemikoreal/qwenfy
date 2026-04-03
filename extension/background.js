@@ -64,46 +64,122 @@ let cache = new Map(); // 内存缓存（快速访问）
 let cacheOrder = [];
 let translationHistory = [];
 let cacheStats = { wordCount: 0, sizeBytes: 0 }; // 缓存统计
+let db = null; // IndexedDB 数据库实例
+
+// ===== IndexedDB 初始化 =====
+const DB_NAME = 'YuxTransDB';
+const DB_VERSION = 1;
+const CACHE_STORE = 'translations';
+
+async function openDatabase() {
+  if (db) return db;
+
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
+
+    request.onerror = () => {
+      console.error('IndexedDB 打开失败:', request.error);
+      reject(request.error);
+    };
+
+    request.onsuccess = () => {
+      db = request.result;
+      resolve(db);
+    };
+
+    request.onupgradeneeded = (event) => {
+      const database = event.target.result;
+      // 创建翻译缓存存储，以缓存键作为主键
+      if (!database.objectStoreNames.contains(CACHE_STORE)) {
+        const store = database.createObjectStore(CACHE_STORE, { keyPath: 'key' });
+        store.createIndex('timestamp', 'timestamp', { unique: false });
+      }
+    };
+  });
+}
+
+// 从 IndexedDB 加载缓存到内存
+async function loadCacheFromDB() {
+  try {
+    const database = await openDatabase();
+    const transaction = database.transaction(CACHE_STORE, 'readonly');
+    const store = transaction.objectStore(CACHE_STORE);
+
+    const request = store.getAll();
+
+    request.onsuccess = () => {
+      const items = request.result;
+      cache.clear();
+      cacheOrder = [];
+
+      // 按时间戳排序，最新的在前
+      items.sort((a, b) => b.timestamp - a.timestamp);
+
+      for (const item of items) {
+        cache.set(item.key, item.value);
+        cacheOrder.push(item.key);
+      }
+
+      // 应用缓存大小限制
+      while (cache.size > config.cacheSize && cacheOrder.length > 0) {
+        const oldest = cacheOrder.pop();
+        cache.delete(oldest);
+      }
+
+      updateCacheStats();
+    };
+
+    request.onerror = () => {
+      console.error('从IndexedDB加载缓存失败:', request.error);
+    };
+  } catch (error) {
+    console.error('打开IndexedDB失败:', error);
+  }
+}
 
 // ===== 缓存批处理优化 =====
 let pendingCacheSave = false;
 let cacheSaveTimer = null;
 
-// 从 chrome.storage.local 加载持久化缓存
-async function loadCacheFromStorage() {
-  const stored = await chrome.storage.local.get(['cacheData', 'cacheOrder']);
-  if (stored.cacheData) {
-    // 将存储的对象转换为 Map
-    const entries = Object.entries(stored.cacheData);
-    cache = new Map(entries);
-    cacheOrder = stored.cacheOrder || [];
-    // 计算缓存统计
-    updateCacheStats();
-  }
-}
-
-// 保存缓存到 chrome.storage.local（批处理优化）
-async function saveCacheToStorage() {
-  // 延迟保存，避免频繁写入
+// 保存缓存到 IndexedDB（批处理优化）
+async function saveCacheToDB() {
   if (pendingCacheSave) return;
 
   pendingCacheSave = true;
 
-  // 清除之前的定时器
   if (cacheSaveTimer) {
     clearTimeout(cacheSaveTimer);
   }
 
-  // 延迟 500ms 后保存，合并多次修改
   cacheSaveTimer = setTimeout(async () => {
     try {
-      const cacheData = Object.fromEntries(cache);
-      await chrome.storage.local.set({ cacheData, cacheOrder });
+      const database = await openDatabase();
+      const transaction = database.transaction(CACHE_STORE, 'readwrite');
+      const store = transaction.objectStore(CACHE_STORE);
+
+      // 清除旧数据后批量写入
+      store.clear();
+
+      const timestamp = Date.now();
+      for (const [key, value] of cache) {
+        store.put({ key, value, timestamp });
+      }
+
+      transaction.oncomplete = () => {
+        pendingCacheSave = false;
+        cacheSaveTimer = null;
+      };
+
+      transaction.onerror = () => {
+        console.error('保存缓存到IndexedDB失败:', transaction.error);
+        pendingCacheSave = false;
+        cacheSaveTimer = null;
+      };
     } catch (error) {
-      console.error('保存缓存失败:', error);
+      console.error('IndexedDB操作失败:', error);
+      pendingCacheSave = false;
+      cacheSaveTimer = null;
     }
-    pendingCacheSave = false;
-    cacheSaveTimer = null;
   }, 500);
 }
 
@@ -129,14 +205,14 @@ async function loadConfig() {
     config = { ...config, ...stored.config };
   }
 
-  // 加载历史记录
+  // 加载历史记录（仍使用chrome.storage.local，数据量小）
   const historyStored = await chrome.storage.local.get('history');
   if (historyStored.history) {
     translationHistory = historyStored.history;
   }
 
-  // 加载持久化缓存
-  await loadCacheFromStorage();
+  // 加载IndexedDB词库缓存
+  await loadCacheFromDB();
 }
 
 async function saveConfig(newConfig) {
@@ -173,7 +249,7 @@ async function setToCache(key, value) {
 
   // 更新统计并持久化保存
   updateCacheStats();
-  await saveCacheToStorage();
+  await saveCacheToDB();
 }
 
 function generateCacheKey(text, sourceLang, targetLang) {
@@ -555,10 +631,14 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         clearTimeout(cacheSaveTimer);
         cacheSaveTimer = null;
       }
-      // 清除持久化存储
-      chrome.storage.local.remove(['cacheData', 'cacheOrder'])
-        .then(() => sendResponse({ success: true }))
-        .catch(() => sendResponse({ success: true })); // 即使清除失败也返回成功
+      // 清除IndexedDB词库
+      openDatabase().then(database => {
+        const transaction = database.transaction(CACHE_STORE, 'readwrite');
+        const store = transaction.objectStore(CACHE_STORE);
+        store.clear();
+        transaction.oncomplete = () => sendResponse({ success: true });
+        transaction.onerror = () => sendResponse({ success: true }); // 即使清除失败也返回成功
+      }).catch(() => sendResponse({ success: true }));
       return true; // 保持消息通道打开
     }
 
