@@ -86,7 +86,12 @@ document.addEventListener('DOMContentLoaded', async () => {
   const testResultEl = document.getElementById('testResult');
 
   // ===== 加载配置 =====
-  const config = await chrome.runtime.sendMessage({ action: 'getConfig' });
+  let config = null;
+  try {
+    config = await chrome.runtime.sendMessage({ action: 'getConfig' });
+  } catch (error) {
+    console.error('加载配置失败:', error);
+  }
 
   if (config) {
     // 翻译引擎
@@ -96,11 +101,6 @@ document.addEventListener('DOMContentLoaded', async () => {
     localModelInput.value = config.localModel || 'qwen2:7b';
     cacheEnabledInput.checked = config.cacheEnabled !== false;
     cacheSizeInput.value = config.cacheSize || 1000;
-
-    // 加载模型选择
-    if (config.model) {
-      loadModelOptions(config.provider, config.model);
-    }
 
     // 自定义供应商
     if (config.customProvider) {
@@ -141,6 +141,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 加载缓存统计
   await loadCacheStats();
+
+  // 初始化服务商 UI（在加载配置后）
+  updateProviderUI();
 
   // ===== 标签页切换 =====
   tabs.forEach(tab => {
@@ -213,15 +216,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         customProviderSection.classList.toggle('show', isCustom);
       }
 
-      // 更新请求地址默认值提示
+      // 更新请求地址默认值提示并加载模型
       if (!isLocal && !isCustom) {
         const defaultEndpoint = DEFAULT_ENDPOINTS[provider] || '';
         if (apiEndpointInput) {
           apiEndpointInput.placeholder = defaultEndpoint ? `默认: ${defaultEndpoint}` : '请输入请求地址';
         }
         // 加载默认模型列表
-        const savedModel = (typeof config !== 'undefined' && config.model) ? config.model : '';
-        loadModelOptions(provider, savedModel || (DEFAULT_MODELS[provider] && DEFAULT_MODELS[provider][0]) || '');
+        const savedModel = config && config.model ? config.model : '';
+        loadModelOptions(provider, savedModel);
       }
     } catch (error) {
       console.error('更新供应商 UI 失败:', error);
@@ -229,7 +232,6 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   providerSelect.addEventListener('change', updateProviderUI);
-  updateProviderUI();
 
   // ===== 获取模型列表 =====
   fetchModelsBtn.addEventListener('click', async () => {
