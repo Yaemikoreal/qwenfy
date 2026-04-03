@@ -754,24 +754,55 @@ class YuxTransContent {
     this.pageTranslationState.isTranslating = true;
     this.pageTranslationState.originalTexts.clear();
 
-    // 显示进度指示器
-    this.showProgressIndicator(nodesInfo.length);
+    // ===== 文本去重优化 =====
+    const uniqueTexts = new Map(); // text -> { indices: [], translation: null }
+    const dedupedItems = [];
+    let duplicateCount = 0;
+
+    nodesInfo.forEach((nodeInfo, index) => {
+      const text = nodeInfo.text;
+      if (uniqueTexts.has(text)) {
+        // 记录重复文本的索引
+        uniqueTexts.get(text).indices.push(index);
+        duplicateCount++;
+      } else {
+        // 新文本
+        uniqueTexts.set(text, { indices: [index], translation: null });
+        dedupedItems.push({ text, originalIndex: index });
+      }
+    });
+
+    // 显示进度指示器（显示去重后的数量）
+    const displayTotal = nodesInfo.length;
+    this.showProgressIndicator(displayTotal);
     const startTime = Date.now();
 
-    // 并行翻译
+    // 并行翻译（只翻译去重后的文本）
     const results = await this.translateBatchParallel(
-      nodesInfo,
+      dedupedItems,
       (completed, total) => {
-        this.updateProgressIndicator(completed, total, startTime);
+        // 进度显示基于实际节点数
+        const actualCompleted = Math.min(completed * Math.ceil(nodesInfo.length / dedupedItems.length), nodesInfo.length);
+        this.updateProgressIndicator(actualCompleted, displayTotal, startTime);
       }
     );
 
-    // 应用翻译结果
-    let successCount = 0;
-    for (let i = 0; i < nodesInfo.length; i++) {
+    // 构建翻译结果映射
+    const translationMap = new Map();
+    dedupedItems.forEach((item, i) => {
       const result = results[i];
       if (result && result.success) {
-        if (this.applyTranslation(nodesInfo[i], result.translated)) {
+        translationMap.set(item.text, result.translated);
+      }
+    });
+
+    // 应用翻译结果（包括重复文本）
+    let successCount = 0;
+    for (let i = 0; i < nodesInfo.length; i++) {
+      const nodeInfo = nodesInfo[i];
+      const translated = translationMap.get(nodeInfo.text);
+      if (translated) {
+        if (this.applyTranslation(nodeInfo, translated)) {
           successCount++;
         }
       }
@@ -782,7 +813,10 @@ class YuxTransContent {
     this.pageTranslationState.isTranslating = false;
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    this.showProgressComplete(successCount, nodesInfo.length, elapsed);
+    const savedPercent = dedupedItems.length > 0
+      ? Math.round((1 - dedupedItems.length / nodesInfo.length) * 100)
+      : 0;
+    this.showProgressComplete(successCount, nodesInfo.length, elapsed, duplicateCount);
   }
 
   showProgressIndicator(total) {
@@ -838,8 +872,12 @@ class YuxTransContent {
     if (speedEl) speedEl.textContent = `速度: ${speed.toFixed(1)} 段/秒 · 预计剩余: ${remaining}秒`;
   }
 
-  showProgressComplete(successCount, totalCount, elapsed) {
+  showProgressComplete(successCount, totalCount, elapsed, duplicateCount = 0) {
     if (!this.progressIndicator) return;
+
+    const savedInfo = duplicateCount > 0
+      ? `<br><span style="color: #27ae60;">去重节省 ${duplicateCount} 次 API 调用</span>`
+      : '';
 
     this.progressIndicator.innerHTML = `
       <div class="yuxtrans-progress-title">
@@ -847,7 +885,7 @@ class YuxTransContent {
         <span>翻译完成</span>
       </div>
       <div class="yuxtrans-progress-text">
-        <span>成功翻译 ${successCount} / ${totalCount} 段</span>
+        <span>成功翻译 ${successCount} / ${totalCount} 段${savedInfo}</span>
       </div>
       <div class="yuxtrans-progress-speed">耗时: ${elapsed} 秒</div>
       <div class="yuxtrans-progress-actions">
