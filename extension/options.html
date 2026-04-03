@@ -463,6 +463,28 @@
           <div class="hint">您的 API Key 将安全存储在浏览器中</div>
         </div>
 
+        <div class="form-group" id="endpointGroup">
+          <label for="apiEndpoint">请求地址</label>
+          <input type="text" id="apiEndpoint" placeholder="默认使用服务商地址">
+          <div class="hint">留空使用默认地址，可自定义 API 端点</div>
+        </div>
+
+        <div class="form-group" id="modelSelectGroup">
+          <label for="modelSelect">使用模型</label>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <select id="modelSelect" style="flex: 1;">
+              <option value="">请先测试连接获取模型列表</option>
+            </select>
+            <button class="btn-test" id="fetchModelsBtn" style="white-space: nowrap;">获取模型</button>
+          </div>
+          <div class="hint">点击「获取模型」按钮从服务器获取可用模型列表</div>
+        </div>
+
+        <div class="form-group" id="testConnectionGroup">
+          <button class="btn-test" id="testProviderBtn">🔗 测试连接</button>
+          <div class="test-result" id="providerTestResult"></div>
+        </div>
+
         <div class="form-group" id="localModelGroup" style="display: none;">
           <label for="localModel">本地模型</label>
           <input type="text" id="localModel" placeholder="qwen2:7b">
@@ -529,7 +551,7 @@
           <label>缓存统计</label>
           <div id="cacheStats" style="display: flex; gap: 20px; padding: 12px; background: rgba(248, 249, 250, 0.8); border-radius: 8px;">
             <div>
-              <span style="color: #888; font-size: 12px;">词汇数量</span>
+              <span style="color: #888; font-size: 12px;">已缓存单词</span>
               <div id="cacheWordCount" style="font-size: 18px; font-weight: 600; color: #3498db;">0</div>
             </div>
             <div>

@@ -5,7 +5,7 @@
  */
 
 const API_ENDPOINTS = {
-  qwen: 'https://dashscope.aliyuncs.com/api/v1/services/aigc/text-generation/generation',
+  qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
   openai: 'https://api.openai.com/v1/chat/completions',
   deepseek: 'https://api.deepseek.com/v1/chat/completions',
   anthropic: 'https://api.anthropic.com/v1/messages',
@@ -36,6 +36,8 @@ const STYLE_PROMPTS = {
 let config = {
   provider: 'qwen',
   apiKey: '',
+  apiEndpoint: '', // 自定义端点
+  model: '', // 选中的模型
   localModel: 'qwen2:7b',
   cacheEnabled: true,
   cacheSize: 1000,
@@ -180,10 +182,16 @@ function generateCacheKey(text, sourceLang, targetLang) {
 
 async function translateWithCloud(text, sourceLang = 'auto', targetLang = 'zh') {
   const isCustom = config.provider === 'custom';
-  const endpoint = isCustom ? config.customProvider.endpoint : API_ENDPOINTS[config.provider];
+  // 优先使用自定义端点，否则使用默认端点
+  const endpoint = isCustom ? config.customProvider.endpoint :
+    (config.apiEndpoint || API_ENDPOINTS[config.provider]);
 
   const apiKey = isCustom ? config.customProvider.apiKey :
     (config.provider === 'local' ? '' : config.apiKey);
+
+  // 优先使用选中的模型
+  const model = isCustom ? config.customProvider.model :
+    (config.model || DEFAULT_MODELS[config.provider] || 'gpt-3.5-turbo');
 
   if (!apiKey && config.provider !== 'local' && !isCustom) {
     throw new Error('请先配置 API Key');
@@ -206,14 +214,13 @@ async function translateWithCloud(text, sourceLang = 'auto', targetLang = 'zh') 
   let headers = { 'Content-Type': 'application/json' };
 
   const format = isCustom ? config.customProvider.format : config.provider;
-  const model = isCustom ? config.customProvider.model : (DEFAULT_MODELS[config.provider] || 'gpt-3.5-turbo');
 
   if (format === 'qwen') {
     headers['Authorization'] = `Bearer ${apiKey}`;
     requestBody = {
       model: model,
-      input: { messages: [{ role: 'user', content: prompt }] },
-      parameters: { temperature: 0.3 }
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3
     };
   } else if (format === 'anthropic') {
     headers['x-api-key'] = apiKey;
@@ -253,7 +260,7 @@ async function translateWithCloud(text, sourceLang = 'auto', targetLang = 'zh') 
 
   let translatedText;
   if (format === 'qwen') {
-    translatedText = data.output?.text || data.output?.choices?.[0]?.message?.content || '';
+    translatedText = data.output?.text || data.output?.choices?.[0]?.message?.content || data.choices?.[0]?.message?.content || '';
   } else if (format === 'anthropic') {
     translatedText = data.content?.[0]?.text || '';
   } else if (config.provider === 'local') {
@@ -316,6 +323,99 @@ async function testConnection(testConfig) {
 
     return { success: true };
 
+  } catch (error) {
+    return { success: false, error: error.message };
+  }
+}
+
+// 获取模型列表
+async function fetchModels(testConfig) {
+  const { provider, apiKey, endpoint } = testConfig;
+
+  if (!apiKey) {
+    return { success: false, error: '请先填写 API Key' };
+  }
+
+  try {
+    // OpenAI 兼容接口获取模型列表
+    const modelsEndpoint = endpoint.replace('/chat/completions', '/models');
+
+    const response = await fetch(modelsEndpoint, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      return { success: false, error: `获取失败: HTTP ${response.status}` };
+    }
+
+    const data = await response.json();
+
+    if (data.data && Array.isArray(data.data)) {
+      const models = data.data
+        .map(m => m.id)
+        .filter(id => id && !id.includes(':')) // 过滤掉一些特殊模型
+        .sort();
+      return { success: true, models };
+    } else if (data.models && Array.isArray(data.models)) {
+      // Ollama 格式
+      const models = data.models.map(m => m.name || m.model);
+      return { success: true, models };
+    }
+
+    return { success: false, error: '无法解析模型列表' };
+  } catch (error) {
+    return { success: false, error: `获取失败: ${error.message}` };
+  }
+}
+
+// 测试服务商连接
+async function testProviderConnection(testConfig) {
+  const { provider, apiKey, endpoint, model } = testConfig;
+
+  if (!apiKey) {
+    return { success: false, error: '请先填写 API Key' };
+  }
+
+  const testText = 'Hello';
+  const prompt = `Translate the following text to Chinese. Provide only the translation.\n\n${testText}`;
+
+  try {
+    let headers = { 'Content-Type': 'application/json' };
+    let requestBody;
+
+    if (provider === 'anthropic') {
+      headers['x-api-key'] = apiKey;
+      headers['anthropic-version'] = '2023-06-01';
+      requestBody = {
+        model: model || DEFAULT_MODELS[provider],
+        max_tokens: 100,
+        messages: [{ role: 'user', content: prompt }]
+      };
+    } else {
+      headers['Authorization'] = `Bearer ${apiKey}`;
+      requestBody = {
+        model: model || DEFAULT_MODELS[provider],
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.3
+      };
+    }
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify(requestBody)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      return { success: false, error: `HTTP ${response.status}: ${errorText.slice(0, 100)}` };
+    }
+
+    return { success: true };
   } catch (error) {
     return { success: false, error: error.message };
   }
@@ -429,6 +529,18 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
     if (request.action === 'testConnection') {
       testConnection(request.config)
+        .then(result => sendResponse(result))
+        .catch(error => sendResponse({ success: false, error: error.message }));
+    }
+
+    if (request.action === 'fetchModels') {
+      fetchModels(request.config)
+        .then(result => sendResponse(result))
+        .catch(error => sendResponse({ success: false, error: error.message }));
+    }
+
+    if (request.action === 'testProviderConnection') {
+      testProviderConnection(request.config)
         .then(result => sendResponse(result))
         .catch(error => sendResponse({ success: false, error: error.message }));
     }

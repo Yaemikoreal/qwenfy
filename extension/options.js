@@ -3,6 +3,29 @@
  * 支持完整的设置功能：自定义供应商、语言设置、操作行为、历史记录
  */
 
+// 默认 API 端点和模型
+const DEFAULT_ENDPOINTS = {
+  qwen: 'https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions',
+  openai: 'https://api.openai.com/v1/chat/completions',
+  deepseek: 'https://api.deepseek.com/v1/chat/completions',
+  anthropic: 'https://api.anthropic.com/v1/messages',
+  groq: 'https://api.groq.com/openai/v1/chat/completions',
+  moonshot: 'https://api.moonshot.cn/v1/chat/completions',
+  siliconflow: 'https://api.siliconflow.cn/v1/chat/completions',
+  local: 'http://localhost:11434/api/chat'
+};
+
+const DEFAULT_MODELS = {
+  qwen: ['qwen-turbo', 'qwen-plus', 'qwen-max', 'qwen-max-longcontext'],
+  openai: ['gpt-4o', 'gpt-4o-mini', 'gpt-4-turbo', 'gpt-3.5-turbo'],
+  deepseek: ['deepseek-chat', 'deepseek-coder'],
+  anthropic: ['claude-3-5-sonnet-latest', 'claude-3-5-haiku-latest', 'claude-3-opus-latest'],
+  groq: ['llama-3.3-70b-versatile', 'llama-3.1-8b-instant', 'mixtral-8x7b-32768'],
+  moonshot: ['moonshot-v1-8k', 'moonshot-v1-32k', 'moonshot-v1-128k'],
+  siliconflow: ['Qwen/Qwen2.5-7B-Instruct', 'Qwen/Qwen2.5-72B-Instruct', 'deepseek-ai/DeepSeek-V2.5'],
+  local: []
+};
+
 document.addEventListener('DOMContentLoaded', async () => {
   // ===== 元素引用 =====
   const tabs = document.querySelectorAll('.tab');
@@ -11,10 +34,18 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 翻译引擎
   const providerSelect = document.getElementById('provider');
   const apiKeyInput = document.getElementById('apiKey');
+  const apiEndpointInput = document.getElementById('apiEndpoint');
+  const modelSelect = document.getElementById('modelSelect');
+  const fetchModelsBtn = document.getElementById('fetchModelsBtn');
+  const testProviderBtn = document.getElementById('testProviderBtn');
+  const providerTestResult = document.getElementById('providerTestResult');
   const localModelInput = document.getElementById('localModel');
   const cacheEnabledInput = document.getElementById('cacheEnabled');
   const cacheSizeInput = document.getElementById('cacheSize');
   const apiKeyGroup = document.getElementById('apiKeyGroup');
+  const endpointGroup = document.getElementById('endpointGroup');
+  const modelSelectGroup = document.getElementById('modelSelectGroup');
+  const testConnectionGroup = document.getElementById('testConnectionGroup');
   const localModelGroup = document.getElementById('localModelGroup');
   const customProviderSection = document.getElementById('customProviderSection');
 
@@ -62,9 +93,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     // 翻译引擎
     providerSelect.value = config.provider || 'qwen';
     apiKeyInput.value = config.apiKey || '';
+    apiEndpointInput.value = config.apiEndpoint || '';
     localModelInput.value = config.localModel || 'qwen2:7b';
     cacheEnabledInput.checked = config.cacheEnabled !== false;
     cacheSizeInput.value = config.cacheSize || 1000;
+
+    // 加载模型选择
+    if (config.model) {
+      loadModelOptions(config.provider, config.model);
+    }
 
     // 自定义供应商
     if (config.customProvider) {
@@ -117,6 +154,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   });
 
+  // ===== 加载模型选项 =====
+  function loadModelOptions(provider, selectedModel = '') {
+    const models = DEFAULT_MODELS[provider] || [];
+    modelSelect.innerHTML = '';
+
+    if (models.length === 0) {
+      modelSelect.innerHTML = '<option value="">请先获取模型列表</option>';
+      return;
+    }
+
+    models.forEach(model => {
+      const option = document.createElement('option');
+      option.value = model;
+      option.textContent = model;
+      if (model === selectedModel) {
+        option.selected = true;
+      }
+      modelSelect.appendChild(option);
+    });
+  }
+
   // ===== 供应商 UI 更新 =====
   function updateProviderUI() {
     const provider = providerSelect.value;
@@ -124,14 +182,108 @@ document.addEventListener('DOMContentLoaded', async () => {
     const isCustom = provider === 'custom';
 
     apiKeyGroup.style.display = isLocal || isCustom ? 'none' : 'block';
+    endpointGroup.style.display = isLocal || isCustom ? 'none' : 'block';
+    modelSelectGroup.style.display = isLocal || isCustom ? 'none' : 'block';
+    testConnectionGroup.style.display = isLocal || isCustom ? 'none' : 'block';
     localModelGroup.style.display = isLocal ? 'block' : 'none';
     customProviderSection.classList.toggle('show', isCustom);
+
+    // 更新请求地址默认值提示
+    if (!isLocal && !isCustom) {
+      apiEndpointInput.placeholder = `默认: ${DEFAULT_ENDPOINTS[provider] || ''}`;
+      loadModelOptions(provider, config?.model || DEFAULT_MODELS[provider]?.[0] || '');
+    }
   }
 
   providerSelect.addEventListener('change', updateProviderUI);
   updateProviderUI();
 
-  // ===== 测试连接 =====
+  // ===== 获取模型列表 =====
+  fetchModelsBtn.addEventListener('click', async () => {
+    const provider = providerSelect.value;
+    const apiKey = apiKeyInput.value.trim();
+    const endpoint = apiEndpointInput.value.trim() || DEFAULT_ENDPOINTS[provider];
+
+    if (!apiKey) {
+      showProviderTestResult(false, '请先填写 API Key');
+      return;
+    }
+
+    fetchModelsBtn.disabled = true;
+    fetchModelsBtn.textContent = '获取中...';
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'fetchModels',
+        config: { provider, apiKey, endpoint }
+      });
+
+      if (response && response.success && response.models) {
+        modelSelect.innerHTML = '';
+        response.models.forEach(model => {
+          const option = document.createElement('option');
+          option.value = model;
+          option.textContent = model;
+          modelSelect.appendChild(option);
+        });
+        showProviderTestResult(true, `获取成功，共 ${response.models.length} 个模型`);
+      } else {
+        showProviderTestResult(false, response?.error || '获取模型列表失败');
+      }
+    } catch (error) {
+      showProviderTestResult(false, `获取失败: ${error.message}`);
+    } finally {
+      fetchModelsBtn.disabled = false;
+      fetchModelsBtn.textContent = '获取模型';
+    }
+  });
+
+  // ===== 测试服务商连接 =====
+  testProviderBtn.addEventListener('click', async () => {
+    const provider = providerSelect.value;
+    const apiKey = apiKeyInput.value.trim();
+    const endpoint = apiEndpointInput.value.trim() || DEFAULT_ENDPOINTS[provider];
+    const model = modelSelect.value;
+
+    if (!apiKey) {
+      showProviderTestResult(false, '请先填写 API Key');
+      return;
+    }
+
+    testProviderBtn.disabled = true;
+    testProviderBtn.textContent = '测试中...';
+    providerTestResult.style.display = 'none';
+
+    const startTime = Date.now();
+
+    try {
+      const response = await chrome.runtime.sendMessage({
+        action: 'testProviderConnection',
+        config: { provider, apiKey, endpoint, model }
+      });
+
+      const elapsed = Date.now() - startTime;
+
+      if (response && response.success) {
+        showProviderTestResult(true, `连接成功！响应时间: ${elapsed}ms`);
+      } else {
+        showProviderTestResult(false, response?.error || '连接失败');
+      }
+    } catch (error) {
+      showProviderTestResult(false, `测试失败: ${error.message}`);
+    } finally {
+      testProviderBtn.disabled = false;
+      testProviderBtn.textContent = '🔗 测试连接';
+    }
+  });
+
+  function showProviderTestResult(success, message) {
+    providerTestResult.className = `test-result ${success ? 'success' : 'error'}`;
+    providerTestResult.innerHTML = `<div>${success ? '✅' : '❌'} ${message}</div>`;
+    providerTestResult.style.display = 'block';
+  }
+
+  // ===== 测试自定义连接 =====
   testConnectionBtn.addEventListener('click', async () => {
     const endpoint = customEndpointInput.value.trim();
     const apiKey = customApiKeyInput.value.trim();
@@ -187,6 +339,8 @@ document.addEventListener('DOMContentLoaded', async () => {
       // 翻译引擎
       provider: providerSelect.value,
       apiKey: apiKeyInput.value,
+      apiEndpoint: apiEndpointInput.value,
+      model: modelSelect.value,
       localModel: localModelInput.value,
       cacheEnabled: cacheEnabledInput.checked,
       cacheSize: parseInt(cacheSizeInput.value, 10),

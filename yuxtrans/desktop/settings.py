@@ -123,7 +123,7 @@ class EngineSettingsTab(QWidget):
 
             db_path = Path.home() / ".yuxtrans" / "cache" / "translations.db"
             if not db_path.exists():
-                self.cache_stats_label.setText("0 词汇 | 0 KB")
+                self.cache_stats_label.setText("已缓存 0 个单词 | 0 KB")
                 return
 
             with sqlite3.connect(db_path) as conn:
@@ -141,7 +141,7 @@ class EngineSettingsTab(QWidget):
                 else:
                     size_str = f"{db_size / 1024:.2f} KB"
 
-                self.cache_stats_label.setText(f"{word_count} 词汇 | {size_str}")
+                self.cache_stats_label.setText(f"已缓存 {word_count} 个单词 | {size_str}")
         except Exception as e:
             self.cache_stats_label.setText(f"读取失败: {str(e)}")
 
