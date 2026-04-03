@@ -58,9 +58,46 @@ let config = {
   saveHistory: true
 };
 
-let cache = new Map();
+let cache = new Map(); // 内存缓存（快速访问）
 let cacheOrder = [];
 let translationHistory = [];
+let cacheStats = { wordCount: 0, sizeBytes: 0 }; // 缓存统计
+
+// 从 chrome.storage.local 加载持久化缓存
+async function loadCacheFromStorage() {
+  const stored = await chrome.storage.local.get(['cacheData', 'cacheOrder']);
+  if (stored.cacheData) {
+    // 将存储的对象转换为 Map
+    const entries = Object.entries(stored.cacheData);
+    cache = new Map(entries);
+    cacheOrder = stored.cacheOrder || [];
+    // 计算缓存统计
+    updateCacheStats();
+  }
+}
+
+// 保存缓存到 chrome.storage.local
+async function saveCacheToStorage() {
+  // 将 Map 转换为普通对象存储
+  const cacheData = Object.fromEntries(cache);
+  await chrome.storage.local.set({ cacheData, cacheOrder });
+}
+
+// 更新缓存统计
+function updateCacheStats() {
+  let totalBytes = 0;
+  let wordCount = 0;
+
+  for (const [key, value] of cache) {
+    // 计算键和值的字节大小
+    totalBytes += new Blob([key]).size;
+    totalBytes += new Blob([value]).size;
+    // 统计词汇数量（每个缓存条目算一个词对）
+    wordCount++;
+  }
+
+  cacheStats = { wordCount, sizeBytes: totalBytes };
+}
 
 async function loadConfig() {
   const stored = await chrome.storage.sync.get('config');
@@ -73,6 +110,9 @@ async function loadConfig() {
   if (historyStored.history) {
     translationHistory = historyStored.history;
   }
+
+  // 加载持久化缓存
+  await loadCacheFromStorage();
 }
 
 async function saveConfig(newConfig) {
@@ -96,7 +136,7 @@ function getFromCache(key) {
   return null;
 }
 
-function setToCache(key, value) {
+async function setToCache(key, value) {
   if (!config.cacheEnabled) return;
 
   if (cache.size >= config.cacheSize) {
@@ -106,6 +146,10 @@ function setToCache(key, value) {
 
   cache.set(key, value);
   cacheOrder.push(key);
+
+  // 更新统计并持久化保存
+  updateCacheStats();
+  await saveCacheToStorage();
 }
 
 function generateCacheKey(text, sourceLang, targetLang) {
@@ -266,7 +310,7 @@ async function translate(text, sourceLang = 'auto', targetLang = 'zh') {
   try {
     const translated = await translateWithCloud(text, sourceLang, targetLang);
 
-    setToCache(cacheKey, translated);
+    await setToCache(cacheKey, translated);
 
     // 保存历史记录
     if (config.saveHistory) {
@@ -370,7 +414,22 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     if (request.action === 'clearCache') {
       cache.clear();
       cacheOrder = [];
+      cacheStats = { wordCount: 0, sizeBytes: 0 };
+      // 清除持久化存储
+      await chrome.storage.local.remove(['cacheData', 'cacheOrder']);
       sendResponse({ success: true });
+    }
+
+    if (request.action === 'getCacheStats') {
+      sendResponse({
+        success: true,
+        stats: {
+          wordCount: cacheStats.wordCount,
+          sizeBytes: cacheStats.sizeBytes,
+          sizeMB: Math.round(cacheStats.sizeBytes / 1024 / 1024 * 100) / 100,
+          sizeGB: Math.round(cacheStats.sizeBytes / 1024 / 1024 / 1024 * 100) / 100
+        }
+      });
     }
 
     if (request.action === 'getHistory') {

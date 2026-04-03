@@ -42,6 +42,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   const saveHistoryInput = document.getElementById('saveHistory');
   const historyListEl = document.getElementById('historyList');
 
+  // 缓存统计
+  const cacheWordCountEl = document.getElementById('cacheWordCount');
+  const cacheSizeDisplayEl = document.getElementById('cacheSizeDisplay');
+
   // 按钮
   const saveBtn = document.getElementById('saveBtn');
   const clearCacheBtn = document.getElementById('clearCacheBtn');
@@ -98,6 +102,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 加载历史记录
   await loadHistory();
+
+  // 加载缓存统计
+  await loadCacheStats();
 
   // ===== 标签页切换 =====
   tabs.forEach(tab => {
@@ -228,10 +235,37 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     if (response && response.success) {
       showStatus('缓存已清除', 'success');
+      await loadCacheStats();
     } else {
       showStatus('清除失败', 'error');
     }
   });
+
+  // ===== 缓存统计 =====
+  async function loadCacheStats() {
+    try {
+      const response = await chrome.runtime.sendMessage({ action: 'getCacheStats' });
+
+      if (response && response.success) {
+        const stats = response.stats;
+        cacheWordCountEl.textContent = stats.wordCount;
+
+        // 根据大小选择合适的单位显示
+        if (stats.sizeGB >= 0.01) {
+          cacheSizeDisplayEl.textContent = `${stats.sizeGB} GB`;
+        } else if (stats.sizeMB >= 0.01) {
+          cacheSizeDisplayEl.textContent = `${stats.sizeMB} MB`;
+        } else {
+          const sizeKB = Math.round(stats.sizeBytes / 1024 * 100) / 100;
+          cacheSizeDisplayEl.textContent = `${sizeKB} KB`;
+        }
+      }
+    } catch (error) {
+      console.error('加载缓存统计失败:', error);
+      cacheWordCountEl.textContent = '0';
+      cacheSizeDisplayEl.textContent = '0 KB';
+    }
+  }
 
   // ===== 历史记录 =====
   async function loadHistory() {

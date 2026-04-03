@@ -2,6 +2,9 @@
 设置对话框
 """
 
+import os
+from pathlib import Path
+
 from PyQt6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -10,6 +13,7 @@ from PyQt6.QtWidgets import (
     QFormLayout,
     QGroupBox,
     QHBoxLayout,
+    QLabel,
     QLineEdit,
     QPushButton,
     QSpinBox,
@@ -98,9 +102,48 @@ class EngineSettingsTab(QWidget):
         self.cache_ttl.setValue(self.config.get("engine", "cache_ttl_days"))
         cache_layout.addRow("缓存天数:", self.cache_ttl)
 
+        # 缓存统计显示
+        self.cache_stats_label = QLabel()
+        self._update_cache_stats()
+        cache_layout.addRow("缓存统计:", self.cache_stats_label)
+
+        # 刷新缓存统计按钮
+        refresh_stats_btn = QPushButton("刷新统计")
+        refresh_stats_btn.clicked.connect(self._update_cache_stats)
+        cache_layout.addRow("", refresh_stats_btn)
+
         layout.addWidget(cache_group)
 
         layout.addStretch()
+
+    def _update_cache_stats(self):
+        """更新缓存统计显示"""
+        try:
+            import sqlite3
+
+            db_path = Path.home() / ".yuxtrans" / "cache" / "translations.db"
+            if not db_path.exists():
+                self.cache_stats_label.setText("0 词汇 | 0 KB")
+                return
+
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.execute("SELECT COUNT(*) FROM translations")
+                word_count = cursor.fetchone()[0]
+
+                # 计算数据库文件大小
+                db_size = os.path.getsize(db_path)
+
+                # 选择合适的单位
+                if db_size >= 1024 * 1024 * 1024:  # >= 1GB
+                    size_str = f"{db_size / (1024 * 1024 * 1024):.2f} GB"
+                elif db_size >= 1024 * 1024:  # >= 1MB
+                    size_str = f"{db_size / (1024 * 1024):.2f} MB"
+                else:
+                    size_str = f"{db_size / 1024:.2f} KB"
+
+                self.cache_stats_label.setText(f"{word_count} 词汇 | {size_str}")
+        except Exception as e:
+            self.cache_stats_label.setText(f"读取失败: {str(e)}")
 
     def apply(self):
         """应用设置"""

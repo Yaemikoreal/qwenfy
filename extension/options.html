@@ -524,6 +524,20 @@
           <input type="number" id="cacheSize" value="1000" min="100" max="10000">
           <div class="hint">最多缓存的翻译条目数量</div>
         </div>
+
+        <div class="form-group">
+          <label>缓存统计</label>
+          <div id="cacheStats" style="display: flex; gap: 20px; padding: 12px; background: rgba(248, 249, 250, 0.8); border-radius: 8px;">
+            <div>
+              <span style="color: #888; font-size: 12px;">词汇数量</span>
+              <div id="cacheWordCount" style="font-size: 18px; font-weight: 600; color: #3498db;">0</div>
+            </div>
+            <div>
+              <span style="color: #888; font-size: 12px;">占用空间</span>
+              <div id="cacheSizeDisplay" style="font-size: 18px; font-weight: 600; color: #27ae60;">0 KB</div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
 
