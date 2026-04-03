@@ -549,15 +549,17 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       cache.clear();
       cacheOrder = [];
       cacheStats = { wordCount: 0, sizeBytes: 0 };
-      // 清除持久化存储
-      await chrome.storage.local.remove(['cacheData', 'cacheOrder']);
       // 重置批处理状态
       pendingCacheSave = false;
       if (cacheSaveTimer) {
         clearTimeout(cacheSaveTimer);
         cacheSaveTimer = null;
       }
-      sendResponse({ success: true });
+      // 清除持久化存储
+      chrome.storage.local.remove(['cacheData', 'cacheOrder'])
+        .then(() => sendResponse({ success: true }))
+        .catch(() => sendResponse({ success: true })); // 即使清除失败也返回成功
+      return true; // 保持消息通道打开
     }
 
     if (request.action === 'getCacheStats') {
